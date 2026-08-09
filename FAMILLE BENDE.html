@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Famille BENDE — Gestion</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{ font-family:'Inter',system-ui,sans-serif; background:radial-gradient(circle at 15% 0%, #fdf1de 0%, #faf5ea 45%, #f7f0e2 100%); }
+  .font-display{ font-family:'Fraunces',serif; }
+  .spin{ animation:spin 1s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  input[type=date]{ min-height:38px; }
+  ::-webkit-scrollbar{ height:6px; width:6px; }
+  ::-webkit-scrollbar-thumb{ background:#e2d5bd; border-radius:6px; }
+  .app-header{ background:linear-gradient(120deg,#251409 0%,#3a2313 55%,#4a2c14 100%); }
+  .app-topbar{ height:4px; background:linear-gradient(90deg,#c1631a,#d9a566,#6d3fa0); }
+  .card-hover{ transition:box-shadow .2s ease, transform .2s ease; }
+  .card-hover:hover{ box-shadow:0 8px 24px -8px rgba(46,27,18,0.18); transform:translateY(-1px); }
+  .btn-gradient{ background:linear-gradient(135deg,#c1631a,#a8501e); }
+  .btn-gradient:hover{ background:linear-gradient(135deg,#ab531a,#8f4318); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+/* ======================================================================= */
+/*  Données & constantes                                                    */
+/* ======================================================================= */
+
+const MONTH_NAMES = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const uid = (p="id") => `${p}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
+
+const defaultData = {
+  tariffMensuel: 2000,
+  genealogie: {
+    pere: { name:"Kakou Bèndè", dateDeces:"", age:"" },
+    mere: { name:"Koua N'Dri", dateDeces:"", age:"" },
+    enfants: [
+      { id:"ge1", name:"Bèndè Akoua", dateDeces:"", age:"" },
+      { id:"ge2", name:"Bèndè Yah", dateDeces:"", age:"", enfants:[
+        { id:"ge2c1", name:"Effi N'Doua", dateDeces:"", age:"" }
+      ] },
+      { id:"ge3", name:"Bèndè Kakou", dateDeces:"", age:"" },
+      { id:"ge4", name:"Bèndè N'Godo", dateDeces:"", age:"" },
+      { id:"ge5", name:"Bèndè N'Guessan", dateDeces:"", age:"" },
+      { id:"ge6", name:"Bèndè Kassi", dateDeces:"", age:"" }
+    ]
+  },
+  families: [
+    { id:"f1", name:"Bèndè Kakou", chef:"Bèndè Kakou", contact:"", montantDeces:50000, delegue:"Kakou Didier" },
+    { id:"f2", name:"Bèndè Akoua", chef:"Bèndè Akoua", contact:"", montantDeces:50000, delegue:"Tanoé Amoiki" },
+    { id:"f3", name:"Bèndè N'Godo", chef:"Bèndè N'Godo", contact:"", montantDeces:50000, delegue:"Anzi Kamenan" },
+    { id:"f4", name:"Bèndè N'Guessan", chef:"Bèndè N'Guessan", contact:"", montantDeces:50000, delegue:"Etcholouba" },
+    { id:"f5", name:"Bèndè Kassi", chef:"Bèndè Kassi", contact:"", montantDeces:50000, delegue:"" }
+  ],
+  members: [
+    { id:"m1", familyId:"f1", numero:1, name:"Kouakou Louis", contact:"07 77 30 75 50", contact2:"", status:"vivant", honneur:true, montantHonneur:50000 },
+    { id:"m2", familyId:"f1", numero:2, name:"Kakou Didier", contact:"07 08 14 24 95", contact2:"01 42 28 38 45", status:"vivant" },
+    { id:"m3", familyId:"f1", numero:3, name:"Bèndè André", contact:"07 08 49 85 76", contact2:"", status:"vivant" },
+    { id:"m4", familyId:"f1", numero:4, name:"Kakou Félicité", contact:"07 47 63 39 33", contact2:"", status:"vivant" },
+    { id:"m5", familyId:"f1", numero:5, name:"Kakou Marie Claire", contact:"01 41 11 11 29", contact2:"", status:"vivant" },
+    { id:"m6", familyId:"f1", numero:6, name:"Bèndè Sylvie", contact:"+234 813 169 3856", contact2:"", status:"vivant" },
+    { id:"m7", familyId:"f1", numero:7, name:"Bèndè Firmin", contact:"07 58 30 36 43", contact2:"", status:"vivant" },
+    { id:"m8", familyId:"f2", numero:8, name:"Tanoé Aka", contact:"07 07 45 13 14", contact2:"01 71 20 52 00", status:"vivant" },
+    { id:"m9", familyId:"f2", numero:9, name:"Tanoé Affou", contact:"07 07 53 05 56", contact2:"", status:"vivant" },
+    { id:"m10", familyId:"f2", numero:10, name:"Tanoé Mamiki", contact:"07 07 78 25 12", contact2:"05 46 36 58 51", status:"vivant" },
+    { id:"m11", familyId:"f2", numero:11, name:"Tanoé Amoiki", contact:"07 07 89 79 99", contact2:"", status:"vivant" },
+    { id:"m12", familyId:"f2", numero:12, name:"Tanoé Touman Elisabeth", contact:"+33 7 51 06 55 03", contact2:"", status:"vivant" },
+    { id:"m13", familyId:"f2", numero:13, name:"Tanoé Akossoua", contact:"07 58 65 88 30", contact2:"", status:"vivant" },
+    { id:"m14", familyId:"f2", numero:14, name:"Tanoé Athanase", contact:"07 07 18 50 15", contact2:"", status:"vivant", honneur:true, montantHonneur:50000 },
+    { id:"m15", familyId:"f2", numero:15, name:"Tanoé Hima", contact:"07 08 25 35 08", contact2:"", status:"vivant" },
+    { id:"m16", familyId:"f2", numero:16, name:"Tanoé Brou", contact:"", contact2:"", status:"vivant" },
+    { id:"m17", familyId:"f3", numero:17, name:"Anzi Kadja Omer", contact:"07 48 09 26 45", contact2:"", status:"vivant" },
+    { id:"m18", familyId:"f3", numero:18, name:"Anzi Sabine", contact:"", contact2:"", status:"decede", dateDeces:"" },
+    { id:"m19", familyId:"f3", numero:19, name:"Anzi Ernest", contact:"07 07 67 08 90", contact2:"01 03 56 99 32", status:"vivant" },
+    { id:"m20", familyId:"f3", numero:20, name:"Anzi Odile", contact:"07 48 51 90 59", contact2:"", status:"decede", dateDeces:"" },
+    { id:"m21", familyId:"f3", numero:21, name:"Anzi N'Zi", contact:"05 05 52 72 41", contact2:"", status:"vivant" },
+    { id:"m22", familyId:"f3", numero:22, name:"Anzi Mlan Roger", contact:"07 07 82 64 64", contact2:"", status:"vivant" },
+    { id:"m23", familyId:"f3", numero:23, name:"Anzi Germaine", contact:"07 47 50 19 80", contact2:"01 40 51 13 32", status:"vivant" },
+    { id:"m24", familyId:"f4", numero:24, name:"N'Doli Etcholouba", contact:"05 45 19 59 49", contact2:"", status:"vivant" },
+    { id:"m31", familyId:"f4", numero:31, name:"N'Doli Adjé", contact:"", contact2:"", status:"vivant" },
+    { id:"m25", familyId:"f5", numero:25, name:"Bèndè Marcellin", contact:"07 49 34 01 44", contact2:"", status:"vivant" },
+    { id:"m26", familyId:"f5", numero:26, name:"Bèndè Solange", contact:"07 07 81 35 29", contact2:"", status:"vivant" },
+    { id:"m27", familyId:"f5", numero:27, name:"Bèndè Olivier", contact:"07 07 89 06 23", contact2:"", status:"vivant" },
+    { id:"m28", familyId:"f5", numero:28, name:"Koua Sylvain", contact:"07 77 94 75 16", contact2:"", status:"vivant" },
+    { id:"m29", familyId:"f5", numero:29, name:"Bèndè Assouman Ferdinand", contact:"07 08 48 44 62", contact2:"", status:"vivant" },
+    { id:"m30", familyId:"f5", numero:30, name:"Bèndè Ida", contact:"+33 6 41 53 58 62", contact2:"", status:"vivant" },
+    { id:"m32", familyId:"f1", numero:32, name:"Kakou Amoun", contact:"", contact2:"", status:"decede", dateDeces:"" },
+    { id:"m33", familyId:"f1", numero:33, name:"Kakou Allou Jacqueline", contact:"", contact2:"", status:"decede", dateDeces:"" }
+  ],
+  monthlyPayments: [],
+  honneurPayments: [],
+  deathEvents: [],
+  bankTransactions: [],
+  caisseTransactions: []
+};
+
+const fmt = n => (Number(n)||0).toLocaleString('fr-FR',{maximumFractionDigits:0}) + " FCFA";
+const esc = s => (s==null?"":String(s)).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtDate = s => { if(!s) return ""; const d=new Date(s+"T00:00:00"); if(isNaN(d)) return s; return d.toLocaleDateString('fr-FR',{day:"2-digit",month:"long",year:"numeric"}); };
+
+function monthsSince2025(){
+  const now = new Date(); const arr=[];
+  for(let y=2025;y<=now.getFullYear();y++){
+    const maxM = y===now.getFullYear() ? now.getMonth() : 11;
+    for(let m=0;m<=maxM;m++) arr.push({year:y,month:m});
+  }
+  return arr;
+}
+function sumTx(list){ return (list||[]).reduce((s,t)=> s + (t.type==='depot'? Number(t.amount) : -Number(t.amount)), 0); }
+function famName(id){ return (state.families.find(f=>f.id===id)||{}).name || "—"; }
+function activeCount(familyId){ return state.members.filter(m=>m.familyId===familyId && m.status!=='decede').length; }
+function cotisantsCount(familyId){ return state.members.filter(m=>m.familyId===familyId && m.status!=='decede' && !m.honneur).length; }
+function telLink(number, size=12){
+  if(!number) return "";
+  const clean = String(number).replace(/[^\d+]/g,"");
+  if(!clean) return "";
+  return `<a href="tel:${clean}" onclick="event.stopPropagation()" title="Appeler ${esc(number)}" class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[#a85c32] bg-[#f6efe0] hover:bg-[#eee1cb] shrink-0">${icon("phone",size)}</a>`;
+}
+function memberCount(familyId){ return state.members.filter(m=>m.familyId===familyId).length; }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function getContribution(ev, familyId){
+  const fam = state.families.find(f=>f.id===familyId);
+  const c = (ev && ev.contributions && ev.contributions[familyId]) || {};
+  return {
+    montantPrevu: c.montantPrevu!=null ? Number(c.montantPrevu) : (fam ? Number(fam.montantDeces)||0 : 0),
+    montantPaye: Number(c.montantPaye)||0,
+    date: c.date || ""
+  };
+}
+function contribStatus(c){
+  const paid = c.montantPrevu>0 && c.montantPaye>=c.montantPrevu;
+  const partial = !paid && c.montantPaye>0;
+  return { paid, partial, tone: paid?"good":(partial?"warn":"bad"), label: paid?"✓ Réglé":(partial?"Partiel":"Non réglé") };
+}
+
+/* ======================================================================= */
+/*  Icônes (SVG minimalistes, style trait fin)                              */
+/* ======================================================================= */
+
+const ICONS = {
+  home:'<path d="M3 9l9-7 9 7"/><path d="M9 22V12h6v10"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z"/>',
+  landmark:'<line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 21 8 3 8"/>',
+  wallet:'<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>',
+  search:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+  pencil:'<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>',
+  x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  transfer:'<path d="M17 3 21 7l-4 4"/><path d="M3 7h18"/><path d="M7 21 3 17l4-4"/><path d="M21 17H3"/>',
+  calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  alert:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  phone:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  tree:'<circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4"/><path d="M12 11.5H5v5"/><path d="M12 11.5h7v5"/>'
+};
+function icon(name,size=16,cls=""){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${cls}">${ICONS[name]||""}</svg>`;
+}
+
+function avatar(url, size=44){
+  if(url){
+    return `<img src="${url}" style="width:${size}px;height:${size}px" class="rounded-full object-cover border border-[#e7dcc8] shrink-0" />`;
+  }
+  return `<div style="width:${size}px;height:${size}px" class="rounded-full flex items-center justify-center bg-[#f1e7d6] text-[#a08a6d] border border-[#e7dcc8] shrink-0">${icon("user", Math.round(size*0.5))}</div>`;
+}
+
+let photoDraft = {};
+function photoPicker(id, currentUrl){
+  return `<div class="flex items-center gap-3">
+    <div id="${id}-preview">${avatar(currentUrl, 64)}</div>
+    <div class="flex flex-col gap-1.5">
+      <label class="text-xs font-medium text-[#a85c32] cursor-pointer underline">Choisir une photo
+        <input type="file" accept="image/*" class="hidden" onchange="App.onPhotoPicked(event,'${id}')" />
+      </label>
+      <button type="button" onclick="App.clearPhotoPicked('${id}')" class="text-xs text-[#c23b2c] underline text-left">Retirer la photo</button>
+    </div>
+  </div>`;
+}
+function uploadingPlaceholder(size=64){
+  return `<div style="width:${size}px;height:${size}px" class="rounded-full flex items-center justify-center bg-[#f1e7d6] text-[#a08a6d] border border-[#e7dcc8]">
+    <svg class="spin" width="${Math.round(size*0.35)}" height="${Math.round(size*0.35)}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+  </div>`;
+}
+function onPhotoPicked(event, id){
+  const file = event.target.files[0];
+  if(!file) return;
+  const prev = document.getElementById(id+"-preview");
+  if(prev) prev.innerHTML = uploadingPlaceholder(64);
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const size = 240;
+      const canvas = document.createElement("canvas");
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      const scale = Math.max(size/img.width, size/img.height);
+      const w = img.width*scale, h = img.height*scale;
+      ctx.drawImage(img, (size-w)/2, (size-h)/2, w, h);
+      canvas.toBlob(async (blob)=>{
+        try{
+          const path = `photos/${id}_${Date.now()}.jpg`;
+          const storageRef = storage.ref().child(path);
+          await storageRef.put(blob, { contentType: "image/jpeg" });
+          const url = await storageRef.getDownloadURL();
+          photoDraft[id] = url;
+          const prev2 = document.getElementById(id+"-preview");
+          if(prev2) prev2.innerHTML = avatar(url, 64);
+        }catch(err){
+          console.error("Erreur d'envoi vers Firebase Storage :", err);
+          const prev2 = document.getElementById(id+"-preview");
+          if(prev2) prev2.innerHTML = avatar(photoDraft[id]||"", 64);
+          alert("Échec de l'envoi de la photo. Vérifiez la configuration de Firebase Storage (bucket + règles).");
+        }
+      }, "image/jpeg", 0.75);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function clearPhotoPicked(id){
+  const oldUrl = photoDraft[id];
+  photoDraft[id] = "";
+  const prev = document.getElementById(id+"-preview");
+  if(prev) prev.innerHTML = avatar("", 64);
+  if(oldUrl && oldUrl.includes("firebasestorage")){
+    try{ storage.refFromURL(oldUrl).delete().catch(()=>{}); }catch(e){}
+  }
+}
+
+/* ======================================================================= */
+/*  UI helpers (chaînes HTML)                                               */
+/* ======================================================================= */
+
+function card(inner, cls=""){ return `<div class="bg-white rounded-2xl border border-[#e7dcc8] shadow-sm card-hover ${cls}">${inner}</div>`; }
+
+function statCard(iconName,label,value,accent="#c1631a",sub=""){
+  return card(`
+    <div class="p-5 flex items-start gap-4" style="border-left:3px solid ${accent}; border-radius:1rem;">
+      <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="background:${accent}1f;color:${accent}">
+        ${icon(iconName,20)}
+      </div>
+      <div class="min-w-0">
+        <p class="text-[13px] uppercase tracking-wide text-[#8a7a63] font-medium">${label}</p>
+        <p class="text-2xl font-semibold text-[#2e1b12] leading-tight mt-0.5 font-display">${value}</p>
+        ${sub?`<p class="text-xs text-[#a08a6d] mt-1">${sub}</p>`:""}
+      </div>
+    </div>`);
+}
+
+function pill(text, tone="neutral"){
+  const tones = {
+    neutral:"bg-[#f1e7d6] text-[#6b5a41]",
+    good:"bg-[#dcf0e2] text-[#1f7a43]",
+    warn:"bg-[#fde7cf] text-[#c1631a]",
+    bad:"bg-[#fbe0e0] text-[#c22f3d]",
+    violet:"bg-[#ece3f7] text-[#6d3fa0]",
+    blue:"bg-[#dfe9fb] text-[#2a5aa8]"
+  };
+  return `<span class="text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${tones[tone]||tones.neutral}">${text}</span>`;
+}
+
+function btn({label, iconName, onclick, variant="primary", extraCls="", type="button"}){
+  const variants = {
+    primary:"btn-gradient text-white shadow-sm",
+    outline:"bg-white border border-[#e7dcc8] text-[#4a3b28] hover:bg-[#faf5ea]",
+    ghost:"bg-transparent text-[#6b5a41] hover:bg-[#f1e7d6]",
+    danger:"bg-transparent text-[#a83c32] hover:bg-[#f7e1de]"
+  };
+  return `<button type="${type}" onclick="${onclick}" class="inline-flex items-center gap-1.5 text-sm font-medium px-3.5 py-2 rounded-lg transition-colors ${variants[variant]} ${extraCls}">${iconName?icon(iconName,15):""}${label?`<span>${label}</span>`:""}</button>`;
+}
+
+function sectionTitle(title, sub){
+  return `<div class="mb-5">
+    <h2 class="text-xl font-semibold text-[#2e1b12] font-display">${title}</h2>
+    ${sub?`<p class="text-sm text-[#8a7a63] mt-1">${sub}</p>`:""}
+  </div>`;
+}
+
+function inputField(id, opts={}){
+  const {type="text", value="", placeholder="", extraCls="", oninput=""} = opts;
+  return `<input id="${id}" type="${type}" value="${esc(value)}" placeholder="${esc(placeholder)}" oninput="${oninput}"
+    class="w-full text-sm px-3 py-2 rounded-lg border border-[#e2d5bd] bg-[#fffdf9] focus:outline-none focus:ring-2 focus:ring-[#d9a566] focus:border-transparent placeholder:text-[#b3a284] ${extraCls}" />`;
+}
+
+function selectField(id, options, selected, extraCls="", onchange=""){
+  return `<select id="${id}" onchange="${onchange}" class="w-full text-sm px-3 py-2 rounded-lg border border-[#e2d5bd] bg-[#fffdf9] focus:outline-none focus:ring-2 focus:ring-[#d9a566] ${extraCls}">
+    ${options.map(o=>`<option value="${esc(o.value)}" ${o.value===selected?"selected":""}>${esc(o.label)}</option>`).join("")}
+  </select>`;
+}
+
+function label(text){ return `<label class="text-xs text-[#8a7a63]">${text}</label>`; }
+
+function familyEmblem(size=38){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none">
+    <circle cx="50" cy="50" r="47" stroke="#a85c32" stroke-width="4"/>
+    <circle cx="50" cy="30" r="12" fill="#a85c32"/>
+    <circle cx="27" cy="42" r="9" fill="#a85c32"/>
+    <circle cx="73" cy="42" r="9" fill="#a85c32"/>
+    <path d="M20 78 C20 55 34 46 50 46 C66 46 80 55 80 78" stroke="#a85c32" stroke-width="9" stroke-linecap="round" fill="none"/>
+  </svg>`;
+}
+
+/* ======================================================================= */
+/*  État global                                                             */
+/* ======================================================================= */
+
+let state = null;
+let currentTab = "dashboard";
+let saveIndicator = "idle";
+let saveTimer = null;
+
+let editingFamilyId = null;
+let editingMemberId = null;
+let membresSearch = "";
+let membresFamilyFilter = "all";
+let cotisationSel = null;
+let editingTariff = false;
+let decesSelectedEvent = null;
+let decesSearch = "";
+
+/* ------- persistance ------- */
+
+/* ======================================================================= */
+/*  Firebase — configuration & connexion                                    */
+/* ======================================================================= */
+
+// 1) Remplacez ces valeurs par celles de votre projet Firebase
+//    (Console Firebase > Paramètres du projet > Vos applications > Config SDK)
+const firebaseConfig = {
+  apiKey: "VOTRE_API_KEY",
+  authDomain: "VOTRE_PROJET.firebaseapp.com",
+  projectId: "VOTRE_PROJET",
+  storageBucket: "VOTRE_PROJET.appspot.com",
+  messagingSenderId: "VOTRE_SENDER_ID",
+  appId: "VOTRE_APP_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
+// Toutes les données de la famille sont stockées dans un seul document Firestore.
+const familyDocRef = db.collection("familleBende").doc("data");
+
+async function loadData(){
+  try{
+    const snap = await familyDocRef.get();
+    if(snap.exists && snap.data() && snap.data().json){
+      state = JSON.parse(snap.data().json);
+      if(!state.genealogie) state.genealogie = structuredClone(defaultData.genealogie);
+      if(!state.honneurPayments) state.honneurPayments = [];
+      return;
+    }
+  }catch(e){ console.error("Erreur de chargement Firebase :", e); }
+  state = structuredClone(defaultData);
+  try{
+    await familyDocRef.set({ json: JSON.stringify(state), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  }catch(e){ console.error("Erreur d'initialisation Firebase :", e); }
+}
+
+function scheduleSave(){
+  saveIndicator = "saving";
+  updateSaveIndicator();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{
+      await familyDocRef.set({ json: JSON.stringify(state), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+      saveIndicator="saved";
+    }
+    catch(e){ console.error("Erreur d'enregistrement Firebase :", e); saveIndicator="idle"; }
+    updateSaveIndicator();
+  }, 400);
+}
+function updateSaveIndicator(){
+  const el = document.getElementById("save-indicator");
+  if(!el) return;
+  el.innerHTML = saveIndicator==="saving"
+    ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10" stroke-opacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10"/></svg> Enregistrement…`
+    : `${icon("shield",12)} Données partagées, synchronisées`;
+}
+
+function mutate(fn){
+  fn(state);
+  scheduleSave();
+  renderTab();
+}
+
+/* ======================================================================= */
+/*  Rendu de la coquille de l'application                                   */
+/* ======================================================================= */
+
+const TABS = [
+  {id:"dashboard", label:"Accueil", icon:"home"},
+  {id:"familles", label:"Familles", icon:"users"},
+  {id:"ascendants", label:"Ascendants", icon:"tree"},
+  {id:"membres", label:"Membres", icon:"user"},
+  {id:"cotisation", label:"Cotisation mensuelle", icon:"calendar"},
+  {id:"deces", label:"Cotisation décès", icon:"heart"},
+  {id:"banque", label:"Banque", icon:"landmark"},
+  {id:"caisse", label:"Caisse", icon:"wallet"}
+];
+
+function renderShell(){
+  document.getElementById("root").innerHTML = `
+    <div class="min-h-screen bg-[#faf5ea]">
+      <header class="app-header text-[#f3e6cf]">
+        <div class="app-topbar"></div>
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            ${familyEmblem(38)}
+            <div>
+              <h1 class="text-lg sm:text-xl font-semibold tracking-tight font-display">Famille BENDE</h1>
+              <p class="text-[11px] text-[#c9b393] -mt-0.5">Gestion des cotisations &amp; de la caisse familiale</p>
+            </div>
+          </div>
+          <div id="save-indicator" class="hidden sm:flex items-center gap-1.5 text-[11px] text-[#c9b393]"></div>
+        </div>
+        <div class="max-w-6xl mx-auto px-2 sm:px-6 overflow-x-auto">
+          <nav class="flex gap-1 min-w-max">
+            ${TABS.map(t=>`
+              <button onclick="App.setTab('${t.id}')" class="flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-medium border-b-2 transition-colors ${currentTab===t.id?"border-[#d9a566] text-white":"border-transparent text-[#c9b393] hover:text-white"}">
+                ${icon(t.icon,15)}<span>${t.label}</span>
+              </button>`).join("")}
+          </nav>
+        </div>
+      </header>
+      <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6" id="tab-content"></main>
+      <footer class="text-center text-xs text-[#a08a6d] py-8">
+        Famille BENDE — Souche ancestrale : ${esc(state.genealogie.pere.name)}${state.genealogie.pere.dateDeces?` († ${fmtDate(state.genealogie.pere.dateDeces)})`:" (†)"} &amp; ${esc(state.genealogie.mere.name)}${state.genealogie.mere.dateDeces?` († ${fmtDate(state.genealogie.mere.dateDeces)})`:" (†)"}
+      </footer>
+    </div>
+    <div id="modal-root"></div>
+  `;
+  updateSaveIndicator();
+  renderTab();
+}
+
+function renderTab(){
+  const map = { dashboard:renderDashboard, familles:renderFamilles, ascendants:renderAscendants, membres:renderMembres, cotisation:renderCotisation, deces:renderDeces, banque:()=>renderTresorerie("bankTransactions","Banque","landmark"), caisse:()=>renderTresorerie("caisseTransactions","Caisse","wallet") };
+  document.getElementById("tab-content").innerHTML = map[currentTab]();
+}
+
+/* ======================================================================= */
+/*  Modales génériques                                                      */
+/* ======================================================================= */
+
+function openModal(title, innerHtml){
+  document.getElementById("modal-root").innerHTML = `
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2e1b12]/40 backdrop-blur-sm" onclick="if(event.target===this) App.closeModal()">
+      <div class="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto shadow-xl">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-[#eee1cb] sticky top-0 bg-white rounded-t-2xl">
+          <h3 class="font-semibold text-[#2e1b12] font-display">${title}</h3>
+          <button onclick="App.closeModal()" class="text-[#8a7a63] hover:text-[#2e1b12]">${icon("x",18)}</button>
+        </div>
+        <div class="p-5">${innerHtml}</div>
+      </div>
+    </div>`;
+}
+function closeModal(){ document.getElementById("modal-root").innerHTML = ""; }
+
+/* ======================================================================= */
+/*  Onglet : Accueil                                                        */
+/* ======================================================================= */
+
+function renderDashboard(){
+  const months = monthsSince2025();
+  const currentYear = new Date().getFullYear();
+  const totalMembers = state.members.length;
+  const totalActive = state.members.filter(m=>m.status!=='decede').length;
+  const soldeBanque = sumTx(state.bankTransactions);
+  const soldeCaisse = sumTx(state.caisseTransactions);
+
+  const chartData = MONTH_NAMES.map((lbl,mIdx)=>{
+    if(!months.find(mo=>mo.year===currentYear && mo.month===mIdx)) return {mois:lbl.slice(0,3), du:0, percu:0};
+    let du=0; state.families.forEach(f=>{ du += cotisantsCount(f.id) * state.tariffMensuel; });
+    const percu = state.monthlyPayments.filter(p=>p.year===currentYear && p.month===mIdx).reduce((s,p)=>s+Number(p.amount),0);
+    return {mois:lbl.slice(0,3), du, percu};
+  });
+  const totalDuAnnee = chartData.reduce((s,c)=>s+c.du,0);
+  const totalPercuAnnee = chartData.reduce((s,c)=>s+c.percu,0);
+  const maxVal = Math.max(1, ...chartData.map(c=>Math.max(c.du,c.percu)));
+
+  const decesEnCours = state.deathEvents.filter(ev=>{
+    return state.families.some(f=>!contribStatus(getContribution(ev,f.id)).paid);
+  });
+
+  const barsHtml = chartData.map(c=>{
+    const hDu = Math.round((c.du/maxVal)*140);
+    const hPercu = Math.round((c.percu/maxVal)*140);
+    return `<div class="flex flex-col items-center gap-1 flex-1 min-w-[28px]">
+      <div class="flex items-end gap-0.5 h-[140px]">
+        <div class="w-3 sm:w-4 rounded-t bg-[#e7dcc8]" style="height:${hDu}px" title="Dû : ${fmt(c.du)}"></div>
+        <div class="w-3 sm:w-4 rounded-t bg-[#a85c32]" style="height:${hPercu}px" title="Perçu : ${fmt(c.percu)}"></div>
+      </div>
+      <span class="text-[10px] text-[#8a7a63]">${c.mois}</span>
+    </div>`;
+  }).join("");
+
+  return `
+    ${sectionTitle("Tableau de bord","Vue d'ensemble de l'association familiale")}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      ${statCard("users","Familles", state.families.length, "#c1631a", `${totalMembers} membres, dont ${totalActive} actifs`)}
+      ${statCard("wallet","Solde caisse", fmt(soldeCaisse), "#2f8f5b")}
+      ${statCard("landmark","Solde banque", fmt(soldeBanque), "#2f6fb8")}
+      ${statCard("heart","Décès en cours", decesEnCours.length, "#c22f3d", decesEnCours.length? "cotisation(s) non soldée(s)":"aucune en attente")}
+    </div>
+
+    ${card(`
+      <div class="p-5">
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div>
+            <h3 class="font-semibold text-[#2e1b12] font-display">Cotisation mensuelle ${currentYear}</h3>
+            <p class="text-xs text-[#8a7a63] mt-0.5">Dû ${fmt(totalDuAnnee)} · Perçu ${fmt(totalPercuAnnee)} · Reste ${fmt(Math.max(totalDuAnnee-totalPercuAnnee,0))}</p>
+          </div>
+          <div class="flex items-center gap-3 text-xs text-[#6b5a41]">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-[#e7dcc8] inline-block"></span> Dû</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-[#a85c32] inline-block"></span> Perçu</span>
+          </div>
+        </div>
+        <div class="flex items-end gap-1 sm:gap-2 overflow-x-auto pb-1">${barsHtml}</div>
+      </div>
+    `, "mb-6")}
+
+    ${card(`
+      <div class="p-5">
+        <h3 class="font-semibold text-[#2e1b12] mb-3 font-display">Répartition par branche familiale</h3>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${state.families.map(f=>`
+            <div class="border border-[#eee1cb] rounded-xl p-3.5">
+              <p class="font-medium text-[#2e1b12] text-sm">${esc(f.name)}</p>
+              <p class="text-xs text-[#8a7a63] mt-0.5">${activeCount(f.id)} membre(s) actif(s)</p>
+              <p class="text-xs text-[#a08a6d] mt-1">Cotisation décès fixée : ${fmt(f.montantDeces)}</p>
+            </div>`).join("")}
+        </div>
+      </div>
+    `)}
+  `;
+}
+
+/* ======================================================================= */
+/*  Onglet : Familles                                                       */
+/* ======================================================================= */
+
+function renderFamilles(){
+  const cards = state.families.map(f=>{
+    if(editingFamilyId===f.id){
+      return card(`
+        <div class="p-4 space-y-2">
+          ${inputField("ef-name",{value:f.name, placeholder:"Nom"})}
+          ${inputField("ef-chef",{value:f.chef, placeholder:"Chef de famille"})}
+          ${inputField("ef-delegue",{value:f.delegue, placeholder:"Délégué (cotisation mensuelle)"})}
+          ${inputField("ef-contact",{value:f.contact, placeholder:"Contact référent"})}
+          ${inputField("ef-montant",{type:"number", value:f.montantDeces, placeholder:"Montant décès"})}
+          <div class="flex gap-2 pt-1">
+            ${btn({label:"Valider", iconName:"check", onclick:`App.saveFamilyEdit('${f.id}')`, extraCls:"flex-1 justify-center"})}
+            ${btn({label:"Annuler", onclick:"App.cancelFamilyEdit()", variant:"outline", extraCls:"flex-1 justify-center"})}
+          </div>
+        </div>
+      `);
+    }
+    return card(`
+      <div class="p-4">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="font-semibold text-[#2e1b12] font-display">${esc(f.name)}</p>
+            <p class="text-xs text-[#8a7a63] mt-0.5">Chef de famille : ${esc(f.chef)||"—"}</p>
+            <p class="text-xs text-[#8a7a63] mt-0.5">Délégué (cotisation) : ${esc(f.delegue)||"—"}</p>
+            ${f.contact?`<p class="text-xs text-[#8a7a63] flex items-center gap-1.5 mt-0.5">${icon("phone",11)} ${esc(f.contact)} ${telLink(f.contact,11)}</p>`:""}
+          </div>
+          <div class="flex gap-1">
+            <button onclick="App.editFamily('${f.id}')" class="text-[#8a7a63] hover:text-[#a85c32] p-1">${icon("pencil",14)}</button>
+            <button onclick="App.deleteFamily('${f.id}')" class="text-[#8a7a63] hover:text-[#a83c32] p-1">${icon("trash",14)}</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-3 flex-wrap">
+          ${pill(memberCount(f.id)+" membre(s)")}
+          ${pill(activeCount(f.id)+" actif(s)","good")}
+          ${pill("Décès fixé : "+fmt(f.montantDeces),"warn")}
+        </div>
+      </div>
+    `);
+  }).join("");
+
+  return `
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+      ${sectionTitle("Familles","Les branches (souches) qui composent la famille BENDE")}
+      ${btn({label:"Nouvelle famille", iconName:"plus", onclick:"App.openNewFamilyModal()"})}
+    </div>
+    <div class="grid sm:grid-cols-2 gap-4">${cards}</div>
+    ${card(`<div class="p-4 flex items-center justify-between gap-3 flex-wrap">
+      <p class="text-xs text-[#8a7a63]">
+        Souche ancestrale de référence :
+        <span class="font-medium text-[#6d3fa0]">${esc(state.genealogie.pere.name)}</span>
+        et
+        <span class="font-medium text-[#6d3fa0]">${esc(state.genealogie.mere.name)}</span>
+        — parents de toutes les familles, à l'origine des branches ci-dessus.
+      </p>
+      <button onclick="App.setTab('ascendants')" class="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-white border border-[#e7dcc8] text-[#6b5a41] hover:bg-[#f6efe0]">${icon("tree",13)} Voir l'arbre généalogique</button>
+    </div>`, "mt-4 bg-[#f6efe0] border-dashed")}
+  `;
+}
+
+function openNewFamilyModal(){
+  openModal("Nouvelle famille", `
+    <div class="space-y-3">
+      <div>${label("Nom de la famille (branche)")}${inputField("nf-name",{placeholder:"Ex : Bèndè Kouassi"})}</div>
+      <div>${label("Chef de famille")}${inputField("nf-chef",{})}</div>
+      <div>${label("Délégué (référent cotisation mensuelle)")}${inputField("nf-delegue",{})}</div>
+      <div>${label("Contact référent")}${inputField("nf-contact",{placeholder:"07 00 00 00 00"})}</div>
+      <div>${label("Montant cotisation décès fixé (FCFA)")}${inputField("nf-montant",{type:"number", value:50000})}</div>
+      ${btn({label:"Enregistrer", iconName:"check", onclick:"App.saveNewFamily()", extraCls:"w-full justify-center mt-2"})}
+    </div>
+  `);
+}
+function saveNewFamily(){
+  const name = document.getElementById("nf-name").value.trim();
+  if(!name) return;
+  const chef = document.getElementById("nf-chef").value.trim();
+  const delegue = document.getElementById("nf-delegue").value.trim();
+  const contact = document.getElementById("nf-contact").value.trim();
+  const montantDeces = Number(document.getElementById("nf-montant").value)||0;
+  mutate(d=>{ d.families.push({id:uid("f"), name, chef, delegue, contact, montantDeces}); });
+  closeModal();
+}
+function editFamily(id){ editingFamilyId=id; renderTab(); }
+function cancelFamilyEdit(){ editingFamilyId=null; renderTab(); }
+function saveFamilyEdit(id){
+  const name = document.getElementById("ef-name").value.trim();
+  const chef = document.getElementById("ef-chef").value.trim();
+  const delegue = document.getElementById("ef-delegue").value.trim();
+  const contact = document.getElementById("ef-contact").value.trim();
+  const montantDeces = Number(document.getElementById("ef-montant").value)||0;
+  mutate(d=>{ const fam=d.families.find(f=>f.id===id); Object.assign(fam,{name,chef,delegue,contact,montantDeces}); });
+  editingFamilyId=null;
+}
+function deleteFamily(id){
+  if(memberCount(id)>0){
+    if(!confirm("Cette famille contient des membres. Les supprimer aussi et retirer la famille ?")) return;
+  } else if(!confirm("Supprimer cette famille ?")) return;
+  mutate(d=>{ d.families=d.families.filter(f=>f.id!==id); d.members=d.members.filter(m=>m.familyId!==id); });
+}
+
+/* ======================================================================= */
+/*  Onglet : Ascendants (arbre généalogique)                                */
+/* ======================================================================= */
+
+function genPersonByPath(path){
+  if(path==="pere") return state.genealogie.pere;
+  if(path==="mere") return state.genealogie.mere;
+  const parts = path.split(":");
+  if(parts[0]==="enfant") return state.genealogie.enfants.find(e=>e.id===parts[1]);
+  if(parts[0]==="petitenfant"){
+    const parent = state.genealogie.enfants.find(e=>e.id===parts[1]);
+    return parent && parent.enfants ? parent.enfants.find(c=>c.id===parts[2]) : null;
+  }
+  return null;
+}
+
+function genNode(person, path){
+  return `<div class="bg-white border border-[#e7dcc8] rounded-xl px-4 py-3 shadow-sm text-center card-hover min-w-[150px] shrink-0">
+    <div class="flex justify-center mb-2">${avatar(person.photo, 48)}</div>
+    <p class="font-semibold text-[#6d3fa0] font-display text-sm flex items-center justify-center gap-1.5">${icon("heart",11,"text-[#6d3fa0] shrink-0")}${esc(person.name)}</p>
+    ${person.dateNaissance?`<p class="text-[11px] text-[#a08a6d] mt-1">Né(e) le ${fmtDate(person.dateNaissance)}</p>`:""}
+    <p class="text-[11px] text-[#8a6bb0] ${person.dateNaissance?"":"mt-1"}">${person.dateDeces? `Décédé(e) le ${fmtDate(person.dateDeces)}`:"Date de décès à renseigner"}</p>
+    ${person.age?`<p class="text-[11px] text-[#a08a6d]">Âge : ${esc(person.age)} ans</p>`:""}
+    <button onclick="App.openGenealogieEditModal('${path}')" class="mt-2 text-[10px] font-medium text-[#8a7a63] hover:text-[#a85c32] inline-flex items-center gap-1">${icon("pencil",11)} Modifier</button>
+  </div>`;
+}
+
+function familyMembersBox(members){
+  if(!members.length) return "";
+  const rows = members.map(m=>{
+    const dead = m.status==='decede';
+    return `<div class="py-1.5 border-b border-[#f1e7d6] last:border-0 text-left">
+      <div class="flex items-start gap-2">
+        ${avatar(m.photo, 28)}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-start justify-between gap-1">
+            <p class="text-xs font-medium ${dead?"text-[#6d3fa0]":"text-[#2e1b12]"}">${esc(m.name)}</p>
+            <button onclick="App.openAscendantMemberModal('${m.id}')" class="shrink-0 text-[#8a7a63] hover:text-[#a85c32] p-0.5" title="Modifier">${icon("pencil",11)}</button>
+          </div>
+          <p class="text-[10px] text-[#a08a6d]">${m.dateNaissance?`Né(e) le ${fmtDate(m.dateNaissance)}`:"Naissance non renseignée"}</p>
+          <p class="text-[10px] ${dead?"text-[#8a6bb0]":"text-[#1f7a43]"}">${dead?`Décédé(e)${m.dateDeces?` le ${fmtDate(m.dateDeces)}`:" (date non renseignée)"}`:"Vivant(e)"}</p>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+  return `<div class="bg-[#fffdf8] border border-[#e7dcc8] rounded-lg px-3 py-1.5 w-[200px] shrink-0 max-h-64 overflow-y-auto">${rows}</div>`;
+}
+
+function openAscendantMemberModal(memberId){
+  const m = state.members.find(x=>x.id===memberId);
+  if(!m) return;
+  photoDraft["am-photo"] = m.photo || "";
+  openModal(`Modifier — ${esc(m.name)}`, `
+    <div class="space-y-3">
+      <div>${label("Photo")}${photoPicker("am-photo", m.photo||"")}</div>
+      <div>${label("Date de naissance")}${inputField("am-birth",{type:"date", value:m.dateNaissance||""})}</div>
+      <div>${label("Statut")}${selectField("am-status", [{value:"vivant",label:"Vivant(e)"},{value:"decede",label:"Décédé(e)"}], m.status, "", "App.toggleAscendantDeathField()")}</div>
+      <div id="am-death-wrap" class="${m.status==='decede'?"":"hidden"}">${label("Date de décès")}${inputField("am-death",{type:"date", value:m.dateDeces||""})}</div>
+      ${btn({label:"Enregistrer", iconName:"check", onclick:`App.saveAscendantMember('${memberId}')`, extraCls:"w-full justify-center mt-1"})}
+    </div>
+  `);
+}
+function toggleAscendantDeathField(){
+  const status = document.getElementById("am-status").value;
+  document.getElementById("am-death-wrap").classList.toggle("hidden", status!=="decede");
+}
+function saveAscendantMember(memberId){
+  const dateNaissance = document.getElementById("am-birth").value || "";
+  const status = document.getElementById("am-status").value;
+  const dateDeces = status==="decede" ? (document.getElementById("am-death").value || "") : "";
+  const photo = photoDraft["am-photo"] || "";
+  delete photoDraft["am-photo"];
+  mutate(d=>{ const mem=d.members.find(x=>x.id===memberId); if(mem) Object.assign(mem,{dateNaissance,status,dateDeces,photo}); });
+  closeModal();
+}
+
+function renderAscendants(){
+  const g = state.genealogie;
+  const childrenHtml = g.enfants.map(enf=>{
+    const family = state.families.find(f=>f.name===enf.name);
+    const familyMembers = family ? state.members.filter(m=>m.familyId===family.id) : [];
+    let descendantsHtml;
+    if(familyMembers.length){
+      descendantsHtml = `<div class="flex flex-col items-center shrink-0"><div class="w-px h-4 bg-[#d9c7a3]"></div>${familyMembersBox(familyMembers)}</div>`;
+    } else {
+      descendantsHtml = (enf.enfants||[]).map(pe=>`
+        <div class="flex flex-col items-center shrink-0">
+          <div class="w-px h-4 bg-[#d9c7a3]"></div>
+          ${genNode(pe, `petitenfant:${enf.id}:${pe.id}`)}
+        </div>
+      `).join("");
+    }
+    return `<div class="flex flex-col items-center shrink-0">
+      ${genNode(enf, `enfant:${enf.id}`)}
+      ${descendantsHtml}
+    </div>`;
+  }).join("");
+
+  return `
+    ${sectionTitle("Ascendants","Arbre généalogique — parents fondateurs, leurs enfants et descendants")}
+    <div class="overflow-x-auto pb-2">
+      <div class="flex flex-col items-center min-w-max px-2">
+        <div class="flex items-center gap-3">
+          ${genNode(g.pere,"pere")}
+          <span class="text-[#c9b393] text-xl font-display">+</span>
+          ${genNode(g.mere,"mere")}
+        </div>
+        <div class="w-px h-6 bg-[#d9c7a3]"></div>
+        <div class="flex items-start gap-5 flex-nowrap border-t border-[#d9c7a3] pt-5">
+          ${childrenHtml}
+        </div>
+      </div>
+    </div>
+    ${card(`<div class="p-4 text-xs text-[#8a7a63] flex items-start gap-2">${icon("alert",13,"text-[#a85c32] shrink-0 mt-0.5")}<span>Les branches familiales actives de l'association (Bèndè Akoua, Bèndè Kakou, Bèndè N'Godo, Bèndè N'Guessan, Bèndè Kassi) correspondent aux enfants listés ci-dessus ; leurs propres enfants (membres) apparaissent en dessous avec leur date de naissance et leur statut. La branche Bèndè Yah s'est éteinte avec son enfant Effi N'Doua.</span></div>`, "mt-5 bg-[#f6efe0] border-dashed")}
+  `;
+}
+
+function openGenealogieEditModal(path){
+  const p = genPersonByPath(path);
+  if(!p) return;
+  photoDraft["ge-photo"] = p.photo || "";
+  openModal(`Modifier — ${esc(p.name)}`, `
+    <div class="space-y-3">
+      <div>${label("Photo")}${photoPicker("ge-photo", p.photo||"")}</div>
+      <div>${label("Nom")}${inputField("ge-name",{value:p.name})}</div>
+      <div>${label("Date de naissance")}${inputField("ge-birth",{type:"date", value:p.dateNaissance||""})}</div>
+      <div>${label("Date de décès")}${inputField("ge-date",{type:"date", value:p.dateDeces||""})}</div>
+      <div>${label("Âge (au décès)")}${inputField("ge-age",{type:"number", value:p.age||""})}</div>
+      ${btn({label:"Enregistrer", iconName:"check", onclick:`App.saveGenealogieEdit('${path}')`, extraCls:"w-full justify-center mt-1"})}
+    </div>
+  `);
+}
+function saveGenealogieEdit(path){
+  const p = genPersonByPath(path);
+  if(!p) return;
+  const name = document.getElementById("ge-name").value.trim();
+  const dateNaissance = document.getElementById("ge-birth").value || "";
+  const dateDeces = document.getElementById("ge-date").value || "";
+  const age = document.getElementById("ge-age").value || "";
+  if(name) p.name = name;
+  p.dateNaissance = dateNaissance;
+  p.dateDeces = dateDeces;
+  p.age = age;
+  p.photo = photoDraft["ge-photo"] || "";
+  delete photoDraft["ge-photo"];
+  scheduleSave();
+  closeModal();
+  renderShell();
+}
+
+/* ======================================================================= */
+/*  Onglet : Membres                                                        */
+/* ======================================================================= */
+
+function filteredMembers(){
+  return state.members.filter(m=>{
+    const okSearch = m.name.toLowerCase().includes(membresSearch.toLowerCase()) || (m.contact||"").includes(membresSearch);
+    const okFam = membresFamilyFilter==="all" || m.familyId===membresFamilyFilter;
+    return okSearch && okFam;
+  });
+}
+
+function renderMembres(){
+  return `
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+      ${sectionTitle("Membres", state.members.length+" membres au total")}
+      ${btn({label:"Nouveau membre", iconName:"plus", onclick:"App.openNewMemberModal()"})}
+    </div>
+    <div class="flex gap-3 flex-wrap mb-4">
+      <div class="relative flex-1 min-w-[200px]">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#b3a284]">${icon("search",15)}</span>
+        ${inputField("membres-search",{value:membresSearch, placeholder:"Rechercher un nom ou un contact…", extraCls:"pl-9", oninput:"App.setMembresSearch(this.value)"})}
+      </div>
+      ${selectField("membres-filter", [{value:"all",label:"Toutes les familles"}, ...state.families.map(f=>({value:f.id,label:f.name}))], membresFamilyFilter, "max-w-[220px]", "App.setMembresFilter(this.value)")}
+    </div>
+    <div id="membres-table-wrap">${membresTableHtml()}</div>
+  `;
+}
+
+function membresTableHtml(){
+  const rows = filteredMembers().map(m=>{
+    if(editingMemberId===m.id){
+      return `<tr class="border-t border-[#f1e7d6]"><td colspan="6" class="px-4 py-3">
+        <div class="grid sm:grid-cols-7 gap-2 items-center">
+          ${inputField("em-name",{value:m.name, placeholder:"Nom"})}
+          ${selectField("em-family", state.families.map(f=>({value:f.id,label:f.name})), m.familyId)}
+          ${inputField("em-contact",{value:m.contact, placeholder:"Contact"})}
+          ${selectField("em-status", [{value:"vivant",label:"Vivant(e)"},{value:"decede",label:"Décédé(e)"}], m.status)}
+          <div>${inputField("em-datenaissance",{type:"date", value:m.dateNaissance||""})}<p class="text-[10px] text-[#a08a6d] mt-0.5">Date de naissance</p></div>
+          <div>${inputField("em-datedeces",{type:"date", value:m.dateDeces||""})}<p class="text-[10px] text-[#a08a6d] mt-0.5">Date de décès (si applicable)</p></div>
+          <div class="flex gap-1.5">
+            ${btn({iconName:"check", onclick:`App.saveMemberEdit('${m.id}')`, extraCls:"flex-1 justify-center"})}
+            ${btn({iconName:"x", onclick:"App.cancelMemberEdit()", variant:"outline", extraCls:"flex-1 justify-center"})}
+          </div>
+        </div>
+      </td></tr>`;
+    }
+    return `<tr class="border-t border-[#f1e7d6] hover:bg-[#faf5ea]">
+      <td class="px-4 py-2.5 text-[#a08a6d]">${m.numero||"—"}</td>
+      <td class="px-4 py-2.5 font-medium ${m.status==='decede'?"text-[#6d3fa0]":"text-[#2e1b12]"}">
+        <div class="flex flex-col">
+          <span class="flex items-center gap-1.5">${m.status==='decede'?icon("heart",11,"text-[#6d3fa0] shrink-0"):""}${m.honneur?icon("star",11,"text-[#b8860b] shrink-0"):""}${esc(m.name)}</span>
+          ${m.status==='decede' && m.dateDeces ? `<span class="text-[11px] font-normal text-[#8a6bb0]">Décédé(e) le ${fmtDate(m.dateDeces)}</span>` : ""}
+        </div>
+      </td>
+      <td class="px-4 py-2.5 text-[#6b5a41]">${esc(famName(m.familyId))}</td>
+      <td class="px-4 py-2.5 text-[#6b5a41]">
+        <div class="flex flex-col gap-1">
+          <span class="flex items-center gap-1.5">${esc(m.contact)||"—"}${telLink(m.contact)}</span>
+          ${m.contact2?`<span class="flex items-center gap-1.5 text-xs text-[#a08a6d]">${esc(m.contact2)}${telLink(m.contact2,11)}</span>`:""}
+        </div>
+      </td>
+      <td class="px-4 py-2.5"><div class="flex flex-wrap gap-1">${pill(m.status==='decede'?"Décédé(e)":"Vivant(e)", m.status==='decede'?"violet":"good")}${m.honneur?pill("Honneur","warn"):""}</div></td>
+      <td class="px-4 py-2.5"><div class="flex gap-1 justify-end">
+        <button onclick="App.toggleHonneur('${m.id}')" title="${m.honneur?"Retirer le statut membre d'honneur":"Marquer membre d'honneur"}" class="${m.honneur?"text-[#b8860b]":"text-[#8a7a63]"} hover:text-[#b8860b] p-1">${icon("star",14)}</button>
+        <button onclick="App.editMember('${m.id}')" class="text-[#8a7a63] hover:text-[#a85c32] p-1">${icon("pencil",14)}</button>
+        <button onclick="App.deleteMember('${m.id}')" class="text-[#8a7a63] hover:text-[#a83c32] p-1">${icon("trash",14)}</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+  return card(`
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="bg-[#f6efe0] text-[#6b5a41] text-xs uppercase tracking-wide">
+          <th class="text-left px-4 py-3 font-medium">N°</th>
+          <th class="text-left px-4 py-3 font-medium">Nom</th>
+          <th class="text-left px-4 py-3 font-medium">Famille</th>
+          <th class="text-left px-4 py-3 font-medium">Contact(s)</th>
+          <th class="text-left px-4 py-3 font-medium">Statut</th>
+          <th class="px-4 py-3"></th>
+        </tr></thead>
+        <tbody>${rows || `<tr><td colspan="6" class="text-center py-8 text-[#a08a6d] text-sm">Aucun membre ne correspond à la recherche.</td></tr>`}</tbody>
+      </table>
+    </div>
+  `);
+}
+
+function setMembresSearch(v){ membresSearch=v; document.getElementById("membres-table-wrap").innerHTML = membresTableHtml(); }
+function setMembresFilter(v){ membresFamilyFilter=v; document.getElementById("membres-table-wrap").innerHTML = membresTableHtml(); }
+function editMember(id){ editingMemberId=id; document.getElementById("membres-table-wrap").innerHTML = membresTableHtml(); }
+function cancelMemberEdit(){ editingMemberId=null; document.getElementById("membres-table-wrap").innerHTML = membresTableHtml(); }
+function saveMemberEdit(id){
+  const name = document.getElementById("em-name").value.trim();
+  const familyId = document.getElementById("em-family").value;
+  const contact = document.getElementById("em-contact").value.trim();
+  const status = document.getElementById("em-status").value;
+  const dateNaissance = document.getElementById("em-datenaissance").value || "";
+  const dateDeces = status==="decede" ? (document.getElementById("em-datedeces").value || "") : "";
+  mutate(d=>{ const mem=d.members.find(x=>x.id===id); Object.assign(mem,{name,familyId,contact,status,dateNaissance,dateDeces}); });
+  editingMemberId=null;
+}
+function deleteMember(id){
+  if(!confirm("Supprimer ce membre ?")) return;
+  mutate(d=>{ d.members=d.members.filter(m=>m.id!==id); });
+}
+function toggleHonneur(id){
+  const m = state.members.find(x=>x.id===id);
+  if(!m) return;
+  if(!m.honneur && !confirm(`Marquer ${m.name} comme membre d'honneur ? Il/elle sera exclu(e) du décompte des cotisations mensuelles familiales et devra une cotisation annuelle forfaitaire (${fmt(50000)} par défaut).`)) return;
+  mutate(d=>{ const mem=d.members.find(x=>x.id===id); mem.honneur=!mem.honneur; if(mem.honneur && !mem.montantHonneur) mem.montantHonneur=50000; });
+}
+function openNewMemberModal(){
+  openModal("Nouveau membre", `
+    <div class="space-y-3">
+      <div>${label("Nom complet")}${inputField("nm-name",{})}</div>
+      <div>${label("Famille")}${selectField("nm-family", state.families.map(f=>({value:f.id,label:f.name})), state.families[0]?.id)}</div>
+      <div>${label("Contact principal")}${inputField("nm-contact",{placeholder:"07 00 00 00 00"})}</div>
+      <div>${label("Contact secondaire (optionnel)")}${inputField("nm-contact2",{})}</div>
+      <div>${label("Statut")}${selectField("nm-status", [{value:"vivant",label:"Vivant(e)"},{value:"decede",label:"Décédé(e)"}], "vivant")}</div>
+      <div>${label("Date de naissance")}${inputField("nm-datenaissance",{type:"date"})}</div>
+      <div>${label("Date de décès (si applicable)")}${inputField("nm-datedeces",{type:"date"})}</div>
+      ${btn({label:"Ajouter le membre", iconName:"check", onclick:"App.saveNewMember()", extraCls:"w-full justify-center mt-2"})}
+    </div>
+  `);
+}
+function saveNewMember(){
+  const name = document.getElementById("nm-name").value.trim();
+  if(!name) return;
+  const familyId = document.getElementById("nm-family").value;
+  const contact = document.getElementById("nm-contact").value.trim();
+  const contact2 = document.getElementById("nm-contact2").value.trim();
+  const status = document.getElementById("nm-status").value;
+  const dateNaissance = document.getElementById("nm-datenaissance").value || "";
+  const dateDeces = status==="decede" ? (document.getElementById("nm-datedeces").value || "") : "";
+  mutate(d=>{ d.members.push({id:uid("m"), familyId, name, contact, contact2, status, dateNaissance, dateDeces}); });
+  closeModal();
+}
+
+/* ======================================================================= */
+/*  Onglet : Cotisation mensuelle                                           */
+/* ======================================================================= */
+
+function renderCotisation(){
+  const now = new Date();
+  if(!cotisationSel) cotisationSel = { year: now.getFullYear(), month: now.getMonth() };
+
+  const monthOptions = MONTH_NAMES.map((nom,idx)=>({value:String(idx), label:nom}));
+  const yearOptions = [];
+  for(let y=2016; y<=2070; y++) yearOptions.push({value:String(y), label:String(y)});
+
+  const periodSelector = `
+    <div class="flex items-center gap-2 flex-wrap">
+      ${selectField("cot-month", monthOptions, String(cotisationSel.month), "min-w-[150px]", "App.setCotisationSel()")}
+      ${selectField("cot-year", yearOptions, String(cotisationSel.year), "min-w-[110px]", "App.setCotisationSel()")}
+    </div>`;
+
+  const rows = state.families.map(f=>{
+    const nb = cotisantsCount(f.id);
+    const due = nb * state.tariffMensuel;
+    const paid = state.monthlyPayments.filter(p=>p.familyId===f.id && p.year===cotisationSel.year && p.month===cotisationSel.month).reduce((s,p)=>s+Number(p.amount),0);
+    const reste = Math.max(due-paid,0);
+    const tone = (paid>=due && due>0) ? "good" : (paid>0 ? "warn" : "bad");
+    const label_ = (paid>=due && due>0) ? "Payé" : (paid>0 ? "Partiel" : "Impayé");
+    return `<tr class="border-t border-[#f1e7d6]">
+      <td class="px-4 py-2.5 font-medium text-[#2e1b12]">${esc(f.name)}</td>
+      <td class="px-4 py-2.5 text-[#6b5a41]">${nb}</td>
+      <td class="px-4 py-2.5 text-[#6b5a41]">${fmt(due)}</td>
+      <td class="px-4 py-2.5 text-[#6b5a41]">${fmt(paid)}</td>
+      <td class="px-4 py-2.5 text-[#6b5a41]">${fmt(reste)}</td>
+      <td class="px-4 py-2.5">${pill(label_,tone)}</td>
+      <td class="px-4 py-2.5 text-right">${btn({label:"Paiement", iconName:"plus", onclick:`App.openPaymentModal('${f.id}')`, variant:"outline"})}</td>
+    </tr>`;
+  }).join("");
+
+  return `
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+      ${sectionTitle("Cotisation mensuelle","Cotisation due par membre, payée au nom de chaque famille")}
+      <div id="tariff-box">${tariffBoxHtml()}</div>
+    </div>
+    <div class="mb-4">
+      ${label("Période")}
+      <div class="mt-1">${periodSelector}</div>
+    </div>
+    ${card(`<div class="overflow-x-auto"><table class="w-full text-sm">
+      <thead><tr class="bg-[#f6efe0] text-[#6b5a41] text-xs uppercase tracking-wide">
+        <th class="text-left px-4 py-3 font-medium">Famille</th>
+        <th class="text-left px-4 py-3 font-medium">Cotisants</th>
+        <th class="text-left px-4 py-3 font-medium">Montant dû</th>
+        <th class="text-left px-4 py-3 font-medium">Perçu</th>
+        <th class="text-left px-4 py-3 font-medium">Reste</th>
+        <th class="text-left px-4 py-3 font-medium">Statut</th>
+        <th class="px-4 py-3"></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`, "mb-5")}
+    ${honneurCardHtml()}
+  `;
+}
+
+/* ---- Membres d'honneur : cotisation annuelle forfaitaire ---- */
+function honneurCardHtml(){
+  const membersH = state.members.filter(m=>m.honneur);
+  if(!membersH.length) return "";
+  const currentYear = cotisationSel ? cotisationSel.year : new Date().getFullYear();
+  const rows = membersH.map(m=>{
+    const due = Number(m.montantHonneur)||50000;
+    const paid = (state.honneurPayments||[]).filter(p=>p.memberId===m.id && p.year===currentYear).reduce((s,p)=>s+Number(p.amount),0);
+    const reste = Math.max(due-paid,0);
+    const tone = (paid>=due && due>0) ? "good" : (paid>0 ? "warn" : "bad");
+    const label_ = (paid>=due && due>0) ? "Payé" : (paid>0 ? "Partiel" : "Impayé");
+    return `<tr class="border-t border-[#f1e7d6]">
+      <td class="px-4 py-2.5 font-medium text-[#2e1b12]">${esc(m.name)}${telLink(m.contact)?` ${telLink(m.contact)}`:""}</td>
+      <td class="px-4 py-2.5 text-[#6b5a41]">${esc(famName(m.familyId))}</td>
+      <td class="px-4 py-2.5 text-[#6b5a41]">${fmt(due)}</td>
+      <td class="px-4 py-2.5 text-[#6b5a41]">${fmt(paid)}</td>
+      <td class="px-4 py-2.5 text-[#6b5a41]">${fmt(reste)}</td>
+      <td class="px-4 py-2.5">${pill(label_,tone)}</td>
+      <td class="px-4 py-2.5 text-right">${btn({label:"Paiement", iconName:"plus", onclick:`App.openHonneurPaymentModal('${m.id}')`, variant:"outline"})}</td>
+    </tr>`;
+  }).join("");
+  return card(`<div class="p-5">
+    <h3 class="font-semibold text-[#2e1b12] mb-1 font-display">Membres d'honneur</h3>
+    <p class="text-xs text-[#8a7a63] mb-4">Cotisation annuelle forfaitaire (hors décompte mensuel des familles) — année ${currentYear}</p>
+    <div class="overflow-x-auto"><table class="w-full text-sm">
+      <thead><tr class="bg-[#f6efe0] text-[#6b5a41] text-xs uppercase tracking-wide">
+        <th class="text-left px-4 py-3 font-medium">Membre</th>
+        <th class="text-left px-4 py-3 font-medium">Famille</th>
+        <th class="text-left px-4 py-3 font-medium">Montant dû (an)</th>
+        <th class="text-left px-4 py-3 font-medium">Perçu</th>
+        <th class="text-left px-4 py-3 font-medium">Reste</th>
+        <th class="text-left px-4 py-3 font-medium">Statut</th>
+        <th class="px-4 py-3"></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`);
+}
+function openHonneurPaymentModal(memberId){
+  const m = state.members.find(x=>x.id===memberId);
+  const currentYear = cotisationSel ? cotisationSel.year : new Date().getFullYear();
+  const existing = (state.honneurPayments||[]).filter(p=>p.memberId===memberId && p.year===currentYear);
+  openModal(`Cotisation d'honneur — ${esc(m.name)}`, `
+    <p class="text-xs text-[#8a7a63] mb-3">Année ${currentYear}</p>
+    <div class="space-y-3">
+      <div>${label("Montant annuel dû (FCFA)")}${inputField("hp-due",{type:"number", value:m.montantHonneur||50000})}</div>
+      <div>${label("Montant versé (FCFA)")}${inputField("hp-amount",{type:"number", placeholder:"0"})}</div>
+      <div>${label("Date")}${inputField("hp-date",{type:"date", value:todayISO()})}</div>
+      <div>${label("Note (optionnel)")}${inputField("hp-note",{})}</div>
+      ${btn({label:"Enregistrer le paiement", iconName:"check", onclick:`App.saveHonneurPayment('${memberId}')`, extraCls:"w-full justify-center"})}
+    </div>
+    ${existing.length? `<div class="mt-5 pt-4 border-t border-[#eee1cb]">
+      <p class="text-xs font-medium text-[#8a7a63] mb-2">Paiements déjà enregistrés (${currentYear})</p>
+      <div class="space-y-1.5 max-h-40 overflow-y-auto">
+        ${existing.map(p=>`<div class="text-xs flex justify-between text-[#6b5a41] bg-[#faf5ea] rounded-lg px-2.5 py-1.5"><span>${p.date}${p.note?` — ${esc(p.note)}`:""}</span><span class="font-medium">${fmt(p.amount)}</span></div>`).join("")}
+      </div>
+    </div>` : ""}
+  `);
+}
+function saveHonneurPayment(memberId){
+  const due = Number(document.getElementById("hp-due").value)||50000;
+  const amount = Number(document.getElementById("hp-amount").value);
+  const date = document.getElementById("hp-date").value || todayISO();
+  const note = document.getElementById("hp-note").value.trim();
+  const year = cotisationSel ? cotisationSel.year : new Date().getFullYear();
+  mutate(d=>{
+    const mem = d.members.find(x=>x.id===memberId);
+    if(mem) mem.montantHonneur = due;
+    if(amount){ d.honneurPayments = d.honneurPayments||[]; d.honneurPayments.push({id:uid("hpay"), memberId, year, amount, date, note}); }
+  });
+  openHonneurPaymentModal(memberId);
+}
+
+function tariffBoxHtml(){
+  if(editingTariff){
+    return `<div class="flex items-center gap-1.5">
+      ${inputField("tariff-draft",{type:"number", value:state.tariffMensuel, extraCls:"w-28"})}
+      ${btn({iconName:"check", onclick:"App.saveTariff()"})}
+      ${btn({iconName:"x", onclick:"App.cancelTariffEdit()", variant:"outline"})}
+    </div>`;
+  }
+  return btn({label:`Tarif : ${fmt(state.tariffMensuel)} / membre`, iconName:"pencil", onclick:"App.startTariffEdit()", variant:"outline"});
+}
+function startTariffEdit(){ editingTariff=true; document.getElementById("tariff-box").innerHTML = tariffBoxHtml(); }
+function cancelTariffEdit(){ editingTariff=false; document.getElementById("tariff-box").innerHTML = tariffBoxHtml(); }
+function saveTariff(){
+  const v = Number(document.getElementById("tariff-draft").value)||0;
+  editingTariff=false;
+  mutate(d=>{ d.tariffMensuel=v; });
+}
+function setCotisationSel(){
+  const month = Number(document.getElementById("cot-month").value);
+  const year = Number(document.getElementById("cot-year").value);
+  cotisationSel = {year, month};
+  renderTab();
+}
+
+function openPaymentModal(familyId){
+  const fam = state.families.find(f=>f.id===familyId);
+  const existing = state.monthlyPayments.filter(p=>p.familyId===familyId && p.year===cotisationSel.year && p.month===cotisationSel.month);
+  openModal(`Paiement — ${esc(fam.name)}`, `
+    <p class="text-xs text-[#8a7a63] mb-3">${MONTH_NAMES[cotisationSel.month]} ${cotisationSel.year}</p>
+    <div class="space-y-3">
+      <div>${label("Montant versé (FCFA)")}${inputField("pay-amount",{type:"number", placeholder:"0"})}</div>
+      <div>${label("Date")}${inputField("pay-date",{type:"date", value:todayISO()})}</div>
+      <div>${label("Note (optionnel)")}${inputField("pay-note",{placeholder:"Ex : versé par le chef de famille"})}</div>
+      ${btn({label:"Enregistrer le paiement", iconName:"check", onclick:`App.savePayment('${familyId}')`, extraCls:"w-full justify-center"})}
+    </div>
+    ${existing.length? `<div class="mt-5 pt-4 border-t border-[#eee1cb]">
+      <p class="text-xs font-medium text-[#8a7a63] mb-2">Paiements déjà enregistrés</p>
+      <div class="space-y-1.5 max-h-40 overflow-y-auto">
+        ${existing.map(p=>`<div class="text-xs flex justify-between text-[#6b5a41] bg-[#faf5ea] rounded-lg px-2.5 py-1.5"><span>${p.date}${p.note?` — ${esc(p.note)}`:""}</span><span class="font-medium">${fmt(p.amount)}</span></div>`).join("")}
+      </div>
+    </div>` : ""}
+  `);
+}
+function savePayment(familyId){
+  const amount = Number(document.getElementById("pay-amount").value);
+  if(!amount) return;
+  const date = document.getElementById("pay-date").value || todayISO();
+  const note = document.getElementById("pay-note").value.trim();
+  mutate(d=>{ d.monthlyPayments.push({id:uid("pay"), familyId, year:cotisationSel.year, month:cotisationSel.month, amount, date, note}); });
+  openPaymentModal(familyId);
+}
+
+/* ======================================================================= */
+/*  Onglet : Cotisation décès                                               */
+/* ======================================================================= */
+
+function renderDeces(){
+  if(state.deathEvents.length===0){
+    return `
+      <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+        ${sectionTitle("Cotisation décès","En cas de décès d'un parent : une cotisation exceptionnelle, un montant fixé par famille")}
+        ${btn({label:"Déclarer un décès", iconName:"plus", onclick:"App.openNewDeathModal()"})}
+      </div>
+      ${card(`<div class="p-8 text-center">${icon("heart",28,"mx-auto text-[#c9b393] mb-2")}<p class="text-sm text-[#8a7a63]">Aucune cotisation décès enregistrée pour le moment.</p></div>`)}
+    `;
+  }
+  if(!decesSelectedEvent || !state.deathEvents.find(e=>e.id===decesSelectedEvent)) decesSelectedEvent = state.deathEvents[0].id;
+  const ev = state.deathEvents.find(e=>e.id===decesSelectedEvent);
+
+  const chips = state.deathEvents.map(e=>`
+    <button onclick="App.selectDeathEvent('${e.id}')" class="shrink-0 px-3.5 py-2 rounded-lg text-sm font-medium border ${decesSelectedEvent===e.id?"bg-[#a83c32] text-white border-[#a83c32]":"bg-white border-[#e7dcc8] text-[#6b5a41] hover:bg-[#f6efe0]"}">${esc(e.label)} · ${e.date}</button>
+  `).join("");
+
+  const totalAttendu = state.families.reduce((s,f)=>s+getContribution(ev,f.id).montantPrevu,0);
+  const totalCollecte = state.families.reduce((s,f)=>s+getContribution(ev,f.id).montantPaye,0);
+
+  const familiesHtml = state.families.map(f=>{
+    const c = getContribution(ev, f.id);
+    const st = contribStatus(c);
+    const reste = Math.max(c.montantPrevu - c.montantPaye, 0);
+    return `<div class="border border-[#eee1cb] rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
+      <div class="min-w-0">
+        <p class="font-medium text-sm text-[#2e1b12]">${esc(f.name)}</p>
+        <p class="text-xs text-[#8a7a63]">Prévu : ${fmt(c.montantPrevu)} &nbsp;·&nbsp; Payé : ${fmt(c.montantPaye)}${reste>0?` &nbsp;·&nbsp; Reste : ${fmt(reste)}`:""}</p>
+        ${c.montantPaye>0 && c.date ? `<p class="text-xs text-[#1f7a43] mt-0.5">Dernier versement le ${fmtDate(c.date)}</p>` : ""}
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        ${pill(st.label, st.tone)}
+        <button onclick="App.openDeathContribModal('${f.id}')" class="text-[#8a7a63] hover:text-[#a85c32] p-1.5 rounded-lg hover:bg-[#faf5ea]">${icon("pencil",14)}</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  return `
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+      ${sectionTitle("Cotisation décès","En cas de décès d'un parent : une cotisation exceptionnelle, un montant fixé par famille")}
+      ${btn({label:"Déclarer un décès", iconName:"plus", onclick:"App.openNewDeathModal()"})}
+    </div>
+    <div class="flex gap-2 overflow-x-auto pb-1 mb-4">${chips}</div>
+    <div class="grid lg:grid-cols-2 gap-5">
+      ${card(`
+        <div class="p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-[#2e1b12] font-display">Familles</h3>
+            <button onclick="App.deleteDeathEvent('${ev.id}')" class="text-[#a08a6d] hover:text-[#a83c32]">${icon("trash",15)}</button>
+          </div>
+          <div class="space-y-2.5">${familiesHtml}</div>
+          <div class="mt-3 pt-3 border-t border-[#eee1cb] flex justify-between text-sm">
+            <span class="text-[#8a7a63]">Total attendu</span><span class="font-semibold text-[#2e1b12]">${fmt(totalAttendu)}</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-[#8a7a63]">Total collecté</span><span class="font-semibold text-[#3f6b45]">${fmt(totalCollecte)}</span>
+          </div>
+        </div>
+      `)}
+      ${card(`
+        <div class="p-4">
+          <h3 class="font-semibold text-[#2e1b12] mb-3 font-display">Membres &amp; contacts</h3>
+          <div class="relative mb-3">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#b3a284]">${icon("search",14)}</span>
+            ${inputField("deces-search",{value:decesSearch, placeholder:"Rechercher un membre…", extraCls:"pl-8", oninput:"App.setDecesSearch(this.value)"})}
+          </div>
+          <div id="deces-members-list" class="max-h-[420px] overflow-y-auto space-y-1.5 pr-1">${decesMembersListHtml()}</div>
+        </div>
+      `)}
+    </div>
+  `;
+}
+function decesMembersListHtml(){
+  const list = state.members.filter(m=>m.name.toLowerCase().includes(decesSearch.toLowerCase()));
+  return list.map(m=>`
+    <div class="flex items-center justify-between text-sm px-2.5 py-2 rounded-lg hover:bg-[#faf5ea]">
+      <div class="min-w-0">
+        <p class="font-medium truncate ${m.status==='decede'?"text-[#6d3fa0]":"text-[#2e1b12]"}">${esc(m.name)}</p>
+        <p class="text-xs text-[#a08a6d]">${esc(famName(m.familyId))}${m.status==='decede' && m.dateDeces? ` · Décédé(e) le ${fmtDate(m.dateDeces)}`:""}</p>
+      </div>
+      <div class="text-right shrink-0 ml-2"><p class="text-xs text-[#6b5a41] flex items-center gap-1.5 justify-end">${esc(m.contact)||"—"}${telLink(m.contact,11)}</p>${m.status==='decede'?pill("Décédé(e)","violet"):""}</div>
+    </div>`).join("") || `<p class="text-sm text-[#a08a6d] text-center py-6">Aucun résultat.</p>`;
+}
+function setDecesSearch(v){ decesSearch=v; document.getElementById("deces-members-list").innerHTML = decesMembersListHtml(); }
+function selectDeathEvent(id){ decesSelectedEvent=id; renderTab(); }
+function openDeathContribModal(familyId){
+  const fam = state.families.find(f=>f.id===familyId);
+  const ev = state.deathEvents.find(e=>e.id===decesSelectedEvent);
+  const c = getContribution(ev, familyId);
+  openModal(`Cotisation décès — ${esc(fam.name)}`, `
+    <p class="text-xs text-[#8a7a63] mb-3">${esc(ev.label)} · ${ev.date}</p>
+    <div class="space-y-3">
+      <div>${label("Montant prévu (FCFA)")}${inputField("dc-prevu",{type:"number", value:c.montantPrevu})}</div>
+      <div>${label("Montant payé (FCFA)")}${inputField("dc-paye",{type:"number", value:c.montantPaye})}</div>
+      <div>${label("Date du versement")}${inputField("dc-date",{type:"date", value:c.date||todayISO()})}</div>
+      ${btn({label:"Enregistrer", iconName:"check", onclick:`App.saveDeathContribution('${familyId}')`, extraCls:"w-full justify-center mt-1"})}
+    </div>
+  `);
+}
+function saveDeathContribution(familyId){
+  const montantPrevu = Number(document.getElementById("dc-prevu").value)||0;
+  const montantPaye = Number(document.getElementById("dc-paye").value)||0;
+  const date = document.getElementById("dc-date").value || todayISO();
+  mutate(d=>{
+    const target = d.deathEvents.find(e=>e.id===decesSelectedEvent);
+    target.contributions[familyId] = { montantPrevu, montantPaye, date };
+  });
+  closeModal();
+}
+function deleteDeathEvent(id){
+  if(!confirm("Supprimer cette cotisation décès ?")) return;
+  mutate(d=>{ d.deathEvents = d.deathEvents.filter(e=>e.id!==id); });
+  decesSelectedEvent = null;
+}
+function openNewDeathModal(){
+  openModal("Déclarer un décès", `
+    <div class="space-y-3">
+      <div>${label("Nom du parent décédé")}${inputField("nd-label",{placeholder:"Ex : Bèndè André"})}</div>
+      <div>${label("Date du décès")}${inputField("nd-date",{type:"date", value:todayISO()})}</div>
+      ${btn({label:"Créer la cotisation", iconName:"check", onclick:"App.saveNewDeathEvent()", extraCls:"w-full justify-center mt-1"})}
+    </div>
+  `);
+}
+function saveNewDeathEvent(){
+  const label_ = document.getElementById("nd-label").value.trim();
+  if(!label_) return;
+  const date = document.getElementById("nd-date").value || todayISO();
+  const id = uid("dc");
+  mutate(d=>{ d.deathEvents.unshift({id, label:label_, date, contributions:{}}); });
+  decesSelectedEvent = id;
+  closeModal();
+  renderTab();
+}
+
+/* ======================================================================= */
+/*  Onglets Banque / Caisse                                                 */
+/* ======================================================================= */
+
+function renderTresorerie(kind, title, iconName){
+  const other = kind==="bankTransactions" ? "caisseTransactions" : "bankTransactions";
+  const otherLabel = kind==="bankTransactions" ? "Caisse" : "Banque";
+  const list = [...(state[kind]||[])].sort((a,b)=> a.date<b.date?1:-1);
+  const solde = sumTx(state[kind]);
+  const accent = kind==="bankTransactions" ? "#2f6fb8" : "#2f8f5b";
+
+  const rows = list.map(t=>`
+    <tr class="border-t border-[#f1e7d6]">
+      <td class="px-4 py-2.5 text-[#6b5a41]">${t.date}</td>
+      <td class="px-4 py-2.5">${pill(t.type==='depot'?"Dépôt":"Retrait", t.type==='depot'?"good":"bad")}</td>
+      <td class="px-4 py-2.5 text-[#6b5a41]">${esc(t.description)||"—"}</td>
+      <td class="px-4 py-2.5 font-medium ${t.type==='depot'?"text-[#3f6b45]":"text-[#a83c32]"}">${t.type==='depot'?"+":"-"}${fmt(t.amount)}</td>
+      <td class="px-4 py-2.5 text-right"><button onclick="App.deleteTx('${kind}','${t.id}')" class="text-[#a08a6d] hover:text-[#a83c32] p-1">${icon("trash",14)}</button></td>
+    </tr>`).join("");
+
+  return `
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+      ${sectionTitle(title, `Suivi des opérations de la ${title.toLowerCase()} familiale`)}
+      <div class="flex gap-2">
+        ${btn({label:`Transfert vers ${otherLabel}`, iconName:"transfer", onclick:`App.openTransferModal('${kind}','${title}','${otherLabel}')`, variant:"outline"})}
+        ${btn({label:"Opération", iconName:"plus", onclick:`App.openTxModal('${kind}','${title}')`})}
+      </div>
+    </div>
+    <div class="mb-5">${statCard(iconName, `Solde ${title.toLowerCase()}`, fmt(solde), accent)}</div>
+    ${card(`<div class="overflow-x-auto"><table class="w-full text-sm">
+      <thead><tr class="bg-[#f6efe0] text-[#6b5a41] text-xs uppercase tracking-wide">
+        <th class="text-left px-4 py-3 font-medium">Date</th>
+        <th class="text-left px-4 py-3 font-medium">Type</th>
+        <th class="text-left px-4 py-3 font-medium">Description</th>
+        <th class="text-left px-4 py-3 font-medium">Montant</th>
+        <th class="px-4 py-3"></th>
+      </tr></thead>
+      <tbody>${rows || `<tr><td colspan="5" class="text-center py-8 text-[#a08a6d] text-sm">Aucune opération enregistrée.</td></tr>`}</tbody>
+    </table></div>`)}
+  `;
+}
+
+function openTxModal(kind, title){
+  openModal(`Nouvelle opération — ${title}`, `
+    <div class="space-y-3">
+      <div>${label("Type")}${selectField("tx-type",[{value:"depot",label:"Dépôt"},{value:"retrait",label:"Retrait"}],"depot")}</div>
+      <div>${label("Montant (FCFA)")}${inputField("tx-amount",{type:"number"})}</div>
+      <div>${label("Date")}${inputField("tx-date",{type:"date", value:todayISO()})}</div>
+      <div>${label("Description")}${inputField("tx-desc",{placeholder:"Ex : cotisations d'août"})}</div>
+      ${btn({label:"Enregistrer", iconName:"check", onclick:`App.saveTx('${kind}')`, extraCls:"w-full justify-center mt-1"})}
+    </div>
+  `);
+}
+function saveTx(kind){
+  const amount = Number(document.getElementById("tx-amount").value);
+  if(!amount) return;
+  const type = document.getElementById("tx-type").value;
+  const date = document.getElementById("tx-date").value || todayISO();
+  const description = document.getElementById("tx-desc").value.trim();
+  mutate(d=>{ d[kind].push({id:uid("tx"), type, amount, date, description}); });
+  closeModal();
+}
+function deleteTx(kind,id){
+  if(!confirm("Supprimer cette opération ?")) return;
+  mutate(d=>{ d[kind] = d[kind].filter(t=>t.id!==id); });
+}
+function openTransferModal(kind, fromLabel, toLabel){
+  openModal(`Transfert ${fromLabel} → ${toLabel}`, `
+    <div class="space-y-3">
+      <div class="flex items-center gap-2 text-sm text-[#6b5a41] bg-[#faf5ea] rounded-lg px-3 py-2">
+        ${icon("alert",14,"text-[#a85c32] shrink-0")} Ce transfert crée un retrait en ${fromLabel} et un dépôt en ${toLabel}.
+      </div>
+      <div>${label("Montant (FCFA)")}${inputField("tr-amount",{type:"number"})}</div>
+      <div>${label("Date")}${inputField("tr-date",{type:"date", value:todayISO()})}</div>
+      <div>${label("Description (optionnel)")}${inputField("tr-desc",{})}</div>
+      ${btn({label:"Confirmer le transfert", iconName:"transfer", onclick:`App.saveTransfer('${kind}','${fromLabel}','${toLabel}')`, extraCls:"w-full justify-center mt-1"})}
+    </div>
+  `);
+}
+function saveTransfer(kind, fromLabel, toLabel){
+  const amount = Number(document.getElementById("tr-amount").value);
+  if(!amount) return;
+  const date = document.getElementById("tr-date").value || todayISO();
+  const description = document.getElementById("tr-desc").value.trim();
+  const other = kind==="bankTransactions" ? "caisseTransactions" : "bankTransactions";
+  mutate(d=>{
+    d[kind].push({id:uid("tx"), date, type:"retrait", amount, description: description || `Transfert vers ${toLabel}`});
+    d[other].push({id:uid("tx"), date, type:"depot", amount, description: description || `Transfert depuis ${fromLabel}`});
+  });
+  closeModal();
+}
+
+/* ======================================================================= */
+/*  API publique (attachée à window.App pour les onclick inline)            */
+/* ======================================================================= */
+
+window.App = {
+  setTab(id){ currentTab=id; renderShell(); },
+  closeModal, openNewFamilyModal, saveNewFamily, editFamily, cancelFamilyEdit, saveFamilyEdit, deleteFamily,
+  openGenealogieEditModal, saveGenealogieEdit, openAscendantMemberModal, toggleAscendantDeathField, saveAscendantMember,
+  onPhotoPicked, clearPhotoPicked,
+  setMembresSearch, setMembresFilter, editMember, cancelMemberEdit, saveMemberEdit, deleteMember, openNewMemberModal, saveNewMember,
+  setCotisationSel, startTariffEdit, cancelTariffEdit, saveTariff, openPaymentModal, savePayment,
+  openHonneurPaymentModal, saveHonneurPayment, toggleHonneur,
+  selectDeathEvent, openDeathContribModal, saveDeathContribution, deleteDeathEvent, openNewDeathModal, saveNewDeathEvent, setDecesSearch,
+  openTxModal, saveTx, deleteTx, openTransferModal, saveTransfer
+};
+
+/* ======================================================================= */
+/*  Démarrage                                                               */
+/* ======================================================================= */
+
+(async function init(){
+  document.getElementById("root").innerHTML = `
+    <div class="min-h-[500px] flex items-center justify-center bg-[#faf5ea]">
+      <div class="flex flex-col items-center gap-3 text-[#a85c32]">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10" stroke-opacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+        <p class="text-sm text-[#8a7a63]">Chargement des données de la famille…</p>
+      </div>
+    </div>`;
+  await loadData();
+  renderShell();
+})();
+</script>
+</body>
+</html>
