@@ -1264,6 +1264,11 @@ function saveMemberPayment(memberId){
 }
 
 /* ---- Export PDF du point des paiements ---- */
+function fmtPdf(n){
+  const v = Math.round(Number(n)||0);
+  const s = Math.abs(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return (v<0?"-":"") + s + " FCFA";
+}
 function exportCotisationPdf(){
   if(!window.jspdf || !window.jspdf.jsPDF){ alert("Le module PDF n'a pas pu se charger. Vérifiez la connexion internet."); return; }
   const { jsPDF } = window.jspdf;
@@ -1283,7 +1288,7 @@ function exportCotisationPdf(){
     const paid = state.monthlyPayments.filter(p=>p.familyId===f.id && p.year===cotisationSel.year && p.month===cotisationSel.month).reduce((s,p)=>s+Number(p.amount),0);
     const reste = Math.max(due-paid,0);
     const label_ = (paid>=due && due>0) ? "Payé" : (paid>0 ? "Partiel" : "Impayé");
-    return [f.name, String(nb), fmt(due), fmt(paid), fmt(reste), label_];
+    return [f.name, String(nb), fmtPdf(due), fmtPdf(paid), fmtPdf(reste), label_];
   });
   doc.autoTable({
     startY: 28,
@@ -1301,7 +1306,7 @@ function exportCotisationPdf(){
       const paid = state.monthlyPayments.filter(p=>p.memberId===m.id && p.year===cotisationSel.year && p.month===cotisationSel.month).reduce((s,p)=>s+Number(p.amount),0);
       const reste = Math.max(due-paid,0);
       const label_ = (paid>=due && due>0) ? "Payé" : (paid>0 ? "Partiel" : "Impayé");
-      return [String(m.numero||""), m.name, famName(m.familyId), fmt(due), fmt(paid), fmt(reste), label_];
+      return [String(m.numero||""), m.name, famName(m.familyId), fmtPdf(due), fmtPdf(paid), fmtPdf(reste), label_];
     });
     doc.setFontSize(11);
     doc.text("Détail par membre", 14, nextY);
@@ -1312,7 +1317,30 @@ function exportCotisationPdf(){
       styles: { fontSize: 8 },
       headStyles: { fillColor: [234,88,12] }
     });
+    nextY = (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : nextY) + 10;
   }
+
+  /* Détail des paiements enregistrés sur la période, triés par date (jour, mois, année) */
+  const periodPayments = state.monthlyPayments
+    .filter(p=>p.year===cotisationSel.year && p.month===cotisationSel.month)
+    .slice()
+    .sort((a,b)=> (a.date||"").localeCompare(b.date||""));
+
+  const detailRows = periodPayments.map(p=>{
+    const mem = p.memberId ? ((state.members.find(m=>m.id===p.memberId)||{}).name || "") : "";
+    return [fmtDate(p.date), mem || "—", famName(p.familyId), fmtPdf(p.amount), p.note || ""];
+  });
+
+  if(nextY > 260) { doc.addPage(); nextY = 20; }
+  doc.setFontSize(11);
+  doc.text("Détail des paiements enregistrés (triés par date)", 14, nextY);
+  doc.autoTable({
+    startY: nextY + 4,
+    head: [["Date de paiement","Membre","Famille","Montant","Note"]],
+    body: detailRows.length ? detailRows : [["—","—","—","—","—"]],
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [234,88,12] }
+  });
 
   doc.save(`cotisation_${MONTH_NAMES[cotisationSel.month]}_${cotisationSel.year}.pdf`);
 }
